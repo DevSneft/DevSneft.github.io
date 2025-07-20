@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Preisrechner V4</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    table { border-collapse: collapse; width: 100%; max-width: 400px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: right; }
+    th { background: #f4f4f4; text-align: left; }
+    input { width: 100%; padding: 4px; }
+    button { margin-top: 10px; padding: 6px 12px; }
+    caption { font-weight: bold; margin-bottom: 10px; }
+    .status { margin-top: 10px; font-size: 0.9em; color: #333; }
+  </style>
+</head>
+<body>
+  <h1>Preisrechner V4</h1>
+
+  <label>Preis in EUR (inkl. deutscher MwSt.):
+    <input type="number" id="preis_eur" value="100" step="0.01">
+  </label>
+  <br><br>
+  <label>Deutsche MwSt (%):
+    <input type="number" id="mwst_de" value="19" step="0.1">
+  </label>
+  <br><br>
+  <label>Schweizer MwSt (%):
+    <input type="number" id="mwst_ch" value="7.7" step="0.1">
+  </label>
+  <br><br>
+  <label>Wechselkurs (EUR → CHF):
+    <input type="number" id="fx" value="0.94" step="0.0001">
+  </label>
+  <br>
+  <button id="btn_fx">Aktuellen Wechselkurs laden</button>
+  <div class="status" id="fx_status">Aktueller Wechselkurs: 0,94 (Fallback)</div>
+  
+  <table>
+    <caption>Preise</caption>
+    <tr>
+      <th>Beschreibung</th>
+      <th>EUR</th>
+      <th>CHF</th>
+    </tr>
+    <tr>
+      <td>Preis inkl. dt. MwSt.</td>
+      <td id="eur_brutto">0</td>
+      <td id="chf_brutto">0</td>
+    </tr>
+    <tr>
+      <td>Deutsche MwSt.</td>
+      <td id="eur_mwst_de">0</td>
+      <td>-</td>
+    </tr>
+    <tr>
+      <td>Schweizer MwSt.</td>
+      <td>-</td>
+      <td id="chf_mwst_ch">0</td>
+    </tr>
+    <tr>
+      <td>Preis inkl. dt. & CH MwSt.</td>
+      <td id="eur_import">0</td>
+      <td id="chf_import">0</td>
+    </tr>
+    <tr>
+      <td>Netto (ohne MwSt.)</td>
+      <td id="eur_netto">0</td>
+      <td id="chf_netto">0</td>
+    </tr>
+    <tr>
+      <td>Import (exkl. dt., inkl. CH MwSt.)</td>
+      <td id="eur_import2">0</td>
+      <td id="chf_import2">0</td>
+    </tr>
+  </table>
+
+  <script>
+    const preisEur = document.getElementById('preis_eur');
+    const mwstDe = document.getElementById('mwst_de');
+    const mwstCh = document.getElementById('mwst_ch');
+    const fxInput = document.getElementById('fx');
+    const fxStatus = document.getElementById('fx_status');
+
+    function berechne() {
+      const bruttoEUR = parseFloat(preisEur.value) || 0;
+      const mwstDE = (parseFloat(mwstDe.value) || 0) / 100;
+      const mwstCH = (parseFloat(mwstCh.value) || 0) / 100;
+      const fx = parseFloat(fxInput.value) || 0.94;
+
+      const nettoEUR = bruttoEUR / (1 + mwstDE);
+      const bruttoCHF = bruttoEUR * fx;
+
+      const eurMwstDe = bruttoEUR - nettoEUR;
+      const chfNetto = nettoEUR * fx;
+      const chfMwstCh = chfNetto * mwstCH;
+
+      // EUR & CHF Werte einfügen
+      document.getElementById('eur_brutto').textContent = bruttoEUR.toFixed(2);
+      document.getElementById('chf_brutto').textContent = bruttoCHF.toFixed(2);
+
+      document.getElementById('eur_mwst_de').textContent = eurMwstDe.toFixed(2);
+      document.getElementById('chf_mwst_ch').textContent = chfMwstCh.toFixed(2);
+
+      document.getElementById('eur_import').textContent = (nettoEUR + eurMwstDe).toFixed(2);
+      document.getElementById('chf_import').textContent = (chfNetto + chfMwstCh).toFixed(2);
+
+      document.getElementById('eur_netto').textContent = nettoEUR.toFixed(2);
+      document.getElementById('chf_netto').textContent = chfNetto.toFixed(2);
+
+      document.getElementById('eur_import2').textContent = nettoEUR.toFixed(2);
+      document.getElementById('chf_import2').textContent = (chfNetto + chfMwstCh).toFixed(2);
+    }
+
+    async function ladeWechselkurs() {
+      try {
+        const response = await fetch('https://api.exchangerate.host/latest?base=EUR&symbols=CHF');
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const data = await response.json();
+        if (data?.rates?.CHF) {
+          fxInput.value = data.rates.CHF.toFixed(4);
+          fxStatus.textContent = 'Aktueller Wechselkurs: 1 € = ' + data.rates.CHF.toFixed(4) + ' CHF';
+        } else throw new Error('Kein Kurs gefunden');
+      } catch (e) {
+        fxInput.value = 0.94; // Fallback
+        fxStatus.textContent = 'Fehler beim Laden, Fallback 0,94';
+      }
+      berechne();
+    }
+
+    document.getElementById('btn_fx').addEventListener('click', ladeWechselkurs);
+    [preisEur, mwstDe, mwstCh, fxInput].forEach(el => el.addEventListener('input', berechne));
+
+    berechne();
+  </script>
+</body>
+</html>
